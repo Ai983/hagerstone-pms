@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { BoqGeneratorPanel } from './BoqGeneratorPanel'
 import type { ProjectDetailContext } from './types'
 
 type DeliverableKind = 'boq' | 'layout' | 'ppt'
@@ -159,6 +160,20 @@ export function Stage3InitialDeliverables({ ctx }: { ctx: ProjectDetailContext }
       )}
       {advancing && (
         <p className="text-xs text-muted-foreground">Advancing to Stage 4…</p>
+      )}
+
+      {/* AI BOQ Generator — uses the current Layout PDF as input.
+          Renders only while the BOQ is still being assembled (Stage 3). */}
+      {stage === 3 && (
+        <BoqGeneratorPanel
+          ctx={ctx}
+          currentLayout={
+            (() => {
+              const cur = groups.layout.find(d => d.is_current)
+              return cur ? { id: cur.id, file_path: cur.file_path, file_name: cur.file_name, version: cur.version } : null
+            })()
+          }
+        />
       )}
 
       {(['boq', 'layout', 'ppt'] as DeliverableKind[]).map(kind => (

@@ -67,6 +67,14 @@ External BOQ generation reuses existing tables:
 - New RLS: project members can insert vendors (was TH/Founder only). UPDATE / DELETE still gated to TH/Founder.
 - Auto-advance to Stage 9 when every internal BOQ line has both `vendor_id` and `vendor_confirmed_at`. A confirmation header shows `n/total confirmed`.
 
+### AI BOQ Generator (Stage 3 sub-feature)
+- New table `design_boq_generation_jobs` tracks each generation request. Status pipeline: `pending → processing → completed | failed`. Stores input meta (area, type, ceiling, notes), the layout PDF path, the generated Excel path + signed URL, and the Claude space extraction in `extracted_spaces` for debugging.
+- RLS: project members read + insert; uploader/TH/Founder update. n8n bypasses RLS via the service-role key.
+- New module `src/lib/boqRateCard.ts` mirrors the rate card + per-space templates the n8n workflow uses. Keep both copies in sync until rates move into a `design_rate_card` table.
+- New component `src/components/stages/BoqGeneratorPanel.tsx` renders inside Stage 3 above the three deliverable panels. Designer enters total area / type / ceiling / notes, panel POSTs to `VITE_N8N_BOQ_WEBHOOK_URL` with a 10-min signed URL for the current Layout PDF, then polls the jobs table every 5 sec for status updates. On completion, surfaces the download link + a summary row (spaces, ₹ total, GST). The generated Excel is meant to be reviewed/edited offline and re-uploaded through the normal BOQ panel.
+- Hidden if `VITE_N8N_BOQ_WEBHOOK_URL` is unset (passive notice). Disabled until a Layout deliverable exists.
+- **External work needed** (outside this codebase): build the n8n workflow per `boq-integration.md` §4 (webhook → Claude Vision → rate-card math → Railway Excel generator → Supabase write-back). The spec's Supabase URL is the CPS project — update to `https://juxsvpuplgiobghauhoj.supabase.co` for the design PMS. The spec's `design_alerts` write uses `type`/`message` columns; our schema uses `alert_type`/`payload` — adjust the n8n alert insert accordingly.
+
 ### Client portal (Stage 7)
 - `design_projects.client_portal_token` — unguessable token generated on project creation. Internal team shares it out-of-band; client visits `/c/:token`.
 - `design_client_responses` — every approve / reject / comment from the client lands here. Internal team reads via RLS; writes only happen via the edge function with the service-role key after validating the token.
@@ -147,3 +155,4 @@ Open question to confirm before building: at Stage 7, should the client see pric
 - **Stage 5 has no "save all" shortcut** — each new draft row needs its own save click. Fine for a few lines, painful for 50+. Could batch.
 - **Auto-advance retries**: if `advanceProject()` fails mid-flow (e.g. RLS edge case), the local UI shows an error but the user must trigger another action to retry. A small "retry advance" button would help.
 - **RLS advisor warnings**: pre-existing `function_search_path_mutable` and `anon_security_definer_function_executable` lints on the helper functions. Low risk since the JWT enforces the user identity; can be cleaned up in a hardening pass.
+
